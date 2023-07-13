@@ -1,9 +1,4 @@
 // Coded by Pietro Squilla
-/*
-Uso comandi:
-    Codifica:    C1011
-    Decodifica:  D0110011
-*/
 #include <Arduino.h>
 
 // dimensioni caratteristiche delle matrici
@@ -77,7 +72,7 @@ void setup(){
   Serial.println("Inserisci un comando (C o D) seguito dalla stringa binaria: ");
 }
 
-void loop() {
+void loop(){
   if(Serial.available()){
     String str = Serial.readString();
     delay(200);
@@ -94,7 +89,15 @@ void loop() {
     str = str.substring(1); 
     
     int blocchi = modalita == 'C' ? (str.length() + DIM_C - 1) / DIM_C : (str.length() + DIM_D - 1) / DIM_D;
+    String decodificata = "";    // stringa per raccogliere i dati decodificati
+    String errori = "";          // stringa per raccogliere gli errori rilevati in decodifica
+    
+    // elaborazione
     for(int b = 0; b < blocchi; b++){
+      if(b == 0 && modalita == 'C'){
+        Serial.print("Codifica Hamming: ");
+      }
+      
       int bin[DIM_D] = {0};
       
       int bit = min((modalita == 'C' ? DIM_C : DIM_D), str.length() - b * (modalita == 'C' ? DIM_C : DIM_D));
@@ -107,12 +110,9 @@ void loop() {
         int ris[DIM_D];
         moltiplica(C, bin, ris);
         
-        Serial.print("Codifica Hamming: ");
         for(int i = 0; i < DIM_D; i++){
           Serial.print(ris[i]);
         }
-        
-        Serial.println();
       }else if(modalita == 'D'){ // se decodifico
         int sindrome[DIM_P];
         moltiplicaParita(P, bin, sindrome);
@@ -134,19 +134,30 @@ void loop() {
           
           bin[posErrore - 1] = 1 - bin[posErrore - 1];
           
-          Serial.print("Errore trovato e corretto alla posizione: ");
-          Serial.println(posErrore);
+          errori += "Errore trovato e corretto alla posizione: ";
+          errori += String(posErrore);
+          errori += " nel blocco ";
+          errori += String(b + 1);  // aggiungo 1 perchè b inizia da 0
+          errori += "\n";
         }
         
         int risDec[DIM_C];
         moltiplicaDec(D, bin, risDec);
         
-        Serial.print("Decodifica Hamming: ");
         for(int i = 0; i < DIM_C; i++){
-          Serial.print(risDec[i]);
+          decodificata += String(risDec[i]);
         }
-        
-        Serial.println();
+      }
+      
+      if(b == blocchi - 1){
+        if(modalita == 'D'){
+          Serial.println("Decodifica Hamming: " + decodificata);
+          if(errori != ""){
+            Serial.println(errori);
+          }
+        }else{
+          Serial.println();
+        }
       }
       
       delay(100); 
