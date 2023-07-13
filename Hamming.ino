@@ -1,4 +1,5 @@
 // Coded by Pietro Squilla
+// Hamming (7,4)
 #include <Arduino.h>
 
 // dimensioni caratteristiche delle matrici
@@ -6,7 +7,7 @@
 #define DIM_D 7
 #define DIM_P 3
 
-// matrici C (codifica), D (decodifica), P (parità)
+// matrici C (codifica), D (decodifica) e P (controllo parità)
 int C[DIM_D][DIM_C] = {
   {1,1,0,1},
   {1,0,1,1},
@@ -16,46 +17,26 @@ int C[DIM_D][DIM_C] = {
   {0,0,1,0},
   {0,0,0,1}
 };
+
 int D[DIM_C][DIM_D] = {
   {0,0,1,0,0,0,0},
   {0,0,0,0,1,0,0},
   {0,0,0,0,0,1,0},
   {0,0,0,0,0,0,1}
 };
+
 int P[DIM_P][DIM_D] = {
   {1,0,1,0,1,0,1},
   {0,1,1,0,0,1,1},
   {0,0,0,1,1,1,1}
 };
 
-// moltiplicazione matrice per vettore ad hoc per la codifica
-void moltiplica(int a[DIM_D][DIM_C], int b[DIM_C], int res[DIM_D]){
-  for(int i = 0; i < DIM_D; i++){
+// funzione generalizzata per moltiplicare una matrice per un vettore
+void moltiplica(int rows, int cols, int* a, int* b, int* res){
+  for(int i = 0; i < rows; i++){
     res[i] = 0;
-    for(int j = 0; j < DIM_C; j++){
-      res[i] += a[i][j] * b[j];
-    }
-    res[i] %= 2; // risultati binari
-  }
-}
-
-// moltiplicazione matrice per vettore ad hoc per la decodifica
-void moltiplicaDec(int a[DIM_C][DIM_D], int b[DIM_D], int res[DIM_C]){
-  for(int i = 0; i < DIM_C; i++){
-    res[i] = 0;
-    for(int j = 0; j < DIM_D; j++){
-      res[i] += a[i][j] * b[j];
-    }
-    res[i] %= 2;
-  }
-}
-
-// moltiplicazione matrice per vettore ad hoc per il controllo degli errori
-void moltiplicaParita(int a[DIM_P][DIM_D], int b[DIM_D], int res[DIM_P]){
-  for(int i = 0; i < DIM_P; i++){
-    res[i] = 0;
-    for(int j = 0; j < DIM_D; j++){
-      res[i] += a[i][j] * b[j];
+    for(int j = 0; j < cols; j++){
+      res[i] += *((a + i*cols) + j) * b[j];
     }
     res[i] %= 2;
   }
@@ -63,12 +44,7 @@ void moltiplicaParita(int a[DIM_P][DIM_D], int b[DIM_D], int res[DIM_P]){
 
 void setup(){
   Serial.begin(9600);
-  
-  // aspetto la comunicazione seriale
-  while(!Serial){
-    ;
-  }
-  
+  while(!Serial);
   Serial.println("Inserisci un comando (C o D) seguito dalla stringa binaria: ");
 }
 
@@ -77,22 +53,26 @@ void loop(){
     String str = Serial.readString();
     delay(200);
     
-    // eliminazione dei caratteri non validi
     for(int i = 0; i < str.length(); i++){
       if(str[i] != '0' && str[i] != '1' && str[i] != 'C' && str[i] != 'D'){
         str.remove(i, 1);
-        i--; // regola l'indice dopo la rimozione
+        i--;
       }
     }
     
+    if(str[0] != 'C' && str[0] != 'D'){
+      Serial.println("Il comando deve iniziare con 'C' o 'D'");
+      return;
+    }
+
     char modalita = str[0]; 
     str = str.substring(1); 
-    
+
     int blocchi = modalita == 'C' ? (str.length() + DIM_C - 1) / DIM_C : (str.length() + DIM_D - 1) / DIM_D;
-    String decodificata = "";    // stringa per raccogliere i dati decodificati
-    String errori = "";          // stringa per raccogliere gli errori rilevati in decodifica
+
+    String decodificata = "";
+    String errori = "";
     
-    // elaborazione
     for(int b = 0; b < blocchi; b++){
       if(b == 0 && modalita == 'C'){
         Serial.print("Codifica Hamming: ");
@@ -106,16 +86,16 @@ void loop(){
         bin[i] = str[i + b * (modalita == 'C' ? DIM_C : DIM_D)] - '0';
       }
       
-      if(modalita == 'C'){ // se codifico
+      if(modalita == 'C'){ 
         int ris[DIM_D];
-        moltiplica(C, bin, ris);
+        moltiplica(DIM_D, DIM_C, (int*)C, bin, ris);
         
         for(int i = 0; i < DIM_D; i++){
           Serial.print(ris[i]);
         }
-      }else if(modalita == 'D'){ // se decodifico
+      }else if(modalita == 'D'){
         int sindrome[DIM_P];
-        moltiplicaParita(P, bin, sindrome);
+        moltiplica(DIM_P, DIM_D, (int*)P, bin, sindrome);
         
         bool errore = false;
         for(int i = 0; i < DIM_P; i++){
@@ -137,12 +117,12 @@ void loop(){
           errori += "Errore trovato e corretto alla posizione: ";
           errori += String(posErrore);
           errori += " nel blocco ";
-          errori += String(b + 1);  // aggiungo 1 perchè b inizia da 0
+          errori += String(b + 1);
           errori += "\n";
         }
         
         int risDec[DIM_C];
-        moltiplicaDec(D, bin, risDec);
+        moltiplica(DIM_C, DIM_D, (int*)D, bin, risDec);
         
         for(int i = 0; i < DIM_C; i++){
           decodificata += String(risDec[i]);
@@ -159,8 +139,6 @@ void loop(){
           Serial.println();
         }
       }
-      
-      delay(100); 
     }
   }
 }
