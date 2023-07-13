@@ -5,7 +5,7 @@ In FileECC.py viene usata la codifica Hamming(7,4) leggendo i byte di un file, d
 In Hamming.ino viene implementata la stessa codifica senza l'uso di librerie esterne, attraverso le proprietà lineari della codifica ed il calcolo matriciale.
 
 
-Per usarlo bisogna comunicare sulla porta seriale la stringa binaria da codificare (o decodificare) seguita dal corrispettivo comando:
+Per usarlo bisogna comunicare sulla porta seriale la stringa binaria da codificare (o decodificare) preceduta dal corrispettivo comando:
 
 1) C per codificare (es: C1011)
 2) D per decodificare (es: D1001101)
